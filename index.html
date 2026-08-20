@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ewiger Zirkel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="terrain">
+    <div class="terrain-layer terrain-back"></div>
+    <div class="terrain-layer terrain-front"></div>
+    <div class="tree" style="left:12%;"><div class="tree-leaves"></div><div class="tree-trunk"></div></div>
+    <div class="tree" style="left:38%;"><div class="tree-leaves"></div><div class="tree-trunk"></div></div>
+    <div class="tree" style="left:63%;"><div class="tree-leaves"></div><div class="tree-trunk"></div></div>
+    <div class="tree" style="left:85%;"><div class="tree-leaves"></div><div class="tree-trunk"></div></div>
+  </div>
+  <div class="wrap">
+    <div class="emblem"><div class="emblem-core"></div></div>
+    <h1>Ewiger Zirkel</h1>
+    <h4 class="MOTD" id="motdText">Test</h4>
+    <div class="status-row" id="statusRow">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">Verbinde mit Server...</span>
+    </div>
+    <div class="panel">
+      <div class="panel-title">
+        <span>Aktive Spieler</span>
+        <span class="count" id="countText"></span>
+      </div>
+      <div id="content">
+        <div class="skeleton">
+          <div class="skeleton-slot"></div>
+          <div class="skeleton-slot"></div>
+          <div class="skeleton-slot"></div>
+          <div class="skeleton-slot"></div>
+          <div class="skeleton-slot"></div>
+          <div class="skeleton-slot"></div>
+        </div>
+      </div>
+    </div>
+    <div class="footer" id="lastUpdated"></div>
+  </div>
+
+<script>
+  const API_URL = "https://api.mcsrvstat.us/3/ewigerzirkel.g-portal.game";
+  const REFRESH_MS = 30000;
+
+  const statusDot = document.getElementById("statusDot");
+  const statusText = document.getElementById("statusText");
+  const motdText = document.getElementById("motdText");
+  const countText = document.getElementById("countText");
+  const content = document.getElementById("content");
+  const lastUpdated = document.getElementById("lastUpdated");
+
+  function getHeadUrl(name) {
+    return "https://api.mcheads.org/head/" + name + "/256";
+  }
+
+  function renderSkeleton() {
+    content.innerHTML =
+      '<div class="skeleton">' +
+      Array(6).fill('<div class="skeleton-slot"></div>').join("") +
+      '</div>';
+  }
+
+  function renderError(message) {
+    content.innerHTML = '<div class="error-state">' + message + '</div>';
+  }
+
+  function renderPlayers(list) {
+    if (!list || list.length === 0) {
+      content.innerHTML = '<div class="empty-state">Gerade ist niemand online.</div>';
+      return;
+    }
+
+    var slots = list.map(function(p) {
+      var name = typeof p === "string" ? p : p.name;
+      var safeName = name.replace(/[<>&]/g, "");
+      return (
+        '<div class="slot">' +
+          '<img src="' + getHeadUrl(name) + '" alt="Spielerkopf von ' + safeName + '" ' +
+            'onerror="this.src=\'https://api.mcheads.org/head/Steve/256\'">' +
+          '<div class="pname">' + safeName + '</div>' +
+        '</div>'
+      );
+    }).join("");
+    content.innerHTML = '<div class="grid">' + slots + '</div>';
+  }
+
+  async function loadStatus(){
+    try{
+      var res = await fetch(API_URL, { cache: "no-store" });
+      if (!res.ok){
+        throw new Error("HTTP " + res.status);
+      }
+      var data = await res.json();
+
+      if (data.online){
+        statusDot.className = "dot online";
+        var onlineCount = data.players && typeof data.players.online === "number" ? data.players.online : 0;
+        var maxCount = data.players && typeof data.players.max === "number" ? data.players.max : "?";
+        statusText.textContent = "Server online";
+        motdText.textContent = data.motd.clean;
+        countText.textContent = onlineCount + " / " + maxCount + " Spieler";
+
+        var list = data.players && data.players.list ? data.players.list : null;
+        if (list){
+          renderPlayers(list);
+        } else if (onlineCount > 0) {
+          content.innerHTML = '<div class="empty-state">' + onlineCount + ' Spieler online, aber der Server zeigt keine Namensliste an.</div>';
+        } else {
+          renderPlayers([]);
+        }
+      } else {
+        statusDot.className = "dot offline";
+        statusText.textContent = "Server offline";
+        countText.textContent = "";
+        content.innerHTML = '<div class="empty-state">Der Server ist gerade nicht erreichbar.</div>';
+      }
+
+    } catch (err){
+      statusDot.className = "dot offline";
+      statusText.textContent = "Verbindung fehlgeschlagen";
+      countText.textContent = "";
+      renderError("Die Serverdaten konnten nicht geladen werden. Es wird automatisch erneut versucht.");
+    }
+  }
+
+  renderSkeleton();
+  loadStatus();
+  setInterval(loadStatus, REFRESH_MS);
+</script>
+
+</body>
+</html>
